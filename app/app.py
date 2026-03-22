@@ -31,6 +31,18 @@ def generate_gemini_settings():
     """
     Dynamically generates the settings.json for Gemini CLI.
     """
+    # Load subagents from fleet_config.json
+    subagents = []
+    config_path = WORKSPACE_ROOT / "fleet_config.json"
+    if config_path.exists():
+        try:
+            with open(config_path, "r") as f:
+                config_data = json.load(f)
+                subagents = config_data.get("subagents", [])
+                logger.info(f"Loaded {len(subagents)} subagents from {config_path}")
+        except Exception as e:
+            logger.error(f"Failed to load fleet_config.json: {e}")
+
     settings = {
         "mcp_servers": {
             "gitlab": {
@@ -57,7 +69,9 @@ def generate_gemini_settings():
             }
         },
         "extensions": {
-            "maestro": {}
+            "maestro": {
+                "subagents": subagents
+            }
         }
     }
     
@@ -113,7 +127,8 @@ def handle_admin_commands(command, say, thread_ts):
                 if usage_file.exists():
                     try:
                         usage_info = f" | 🧠 {usage_file.read_text().strip()}"
-                    except: pass
+                    except Exception:
+                        pass
                 
                 mtime = time.strftime('%m-%d %H:%M', time.localtime(session_dir.stat().st_mtime))
                 sessions.append(f"• `{session_dir.name}`: {format_size(size)}{usage_info} (Active: {mtime})")
@@ -231,52 +246,55 @@ def handle_interaction(event, say):
             last_usage = None
             error_detected = None
             
-            for line in process.stdout:
-                line_strip = line.strip()
-                if not line_strip: continue
-                
-                # Check for CLI errors in non-JSON output (e.g. startup errors)
-                if not line_strip.startswith("{"):
-                    logger.info(f"CLI Raw: {line_strip}")
-                    detected = check_for_errors(line_strip)
-                    if detected: error_detected = detected
-                    continue
+            if process.stdout:
+                for line in process.stdout:
+                    line_strip = line.strip()
+                    if not line_strip:
+                        continue
+                    
+                    # Check for CLI errors in non-JSON output (e.g. startup errors)
+                    if not line_strip.startswith("{"):
+                        logger.info(f"CLI Raw: {line_strip}")
+                        detected = check_for_errors(line_strip)
+                        if detected:
+                            error_detected = detected
+                        continue
 
-                try:
-                    event_data = json.loads(line_strip)
-                    event_type = event_data.get("type")
-                    
-                    if event_type == "message":
-                        # Assistant's response chunks
-                        if event_data.get("role") == "assistant":
-                            full_response += event_data.get("content", "")
-                    
-                    elif event_type == "tool_use":
-                        # Tool call initiation
-                        tool_name = event_data.get("tool_name")
-                        say(f"🛠️ **Acting:** Executing `{tool_name}`...", thread_ts=thread_ts)
+                    try:
+                        event_data = json.loads(line_strip)
+                        event_type = event_data.get("type")
                         
-                    elif event_type == "result":
-                        # Final token usage metadata and execution status
-                        stats = event_data.get("stats", {})
-                        last_usage = stats.get("total_tokens")
-                        if last_usage:
-                            usage_str = f"{last_usage:,} / {MAX_TOKENS:,} tokens"
-                            with open(session_dir / ".context_usage", "w") as f:
-                                f.write(usage_str)
-                            # Immediate threshold check
-                            if last_usage / MAX_TOKENS > CONTEXT_THRESHOLD:
-                                say(f"⚠️ **CRITICAL: Context limit reached ({last_usage:,}/{MAX_TOKENS:,})!** Terminating.", thread_ts=thread_ts)
-                                process.terminate()
-                                break
+                        if event_type == "message":
+                            # Assistant's response chunks
+                            if event_data.get("role") == "assistant":
+                                full_response += event_data.get("content", "")
+                        
+                        elif event_type == "tool_use":
+                            # Tool call initiation
+                            tool_name = event_data.get("tool_name")
+                            say(f"🛠️ **Acting:** Executing `{tool_name}`...", thread_ts=thread_ts)
+                            
+                        elif event_type == "result":
+                            # Final token usage metadata and execution status
+                            stats = event_data.get("stats", {})
+                            last_usage = stats.get("total_tokens")
+                            if last_usage:
+                                usage_str = f"{last_usage:,} / {MAX_TOKENS:,} tokens"
+                                with open(session_dir / ".context_usage", "w") as f:
+                                    f.write(usage_str)
+                                # Immediate threshold check
+                                if last_usage / MAX_TOKENS > CONTEXT_THRESHOLD:
+                                    say(f"⚠️ **CRITICAL: Context limit reached ({last_usage:,}/{MAX_TOKENS:,})!** Terminating.", thread_ts=thread_ts)
+                                    process.terminate()
+                                    break
 
-                except json.JSONDecodeError:
-                    continue
+                    except json.JSONDecodeError:
+                        continue
 
-                if time.time() - start_time > TIMEOUT_SECONDS:
-                    say(f"🛑 **TIMEOUT: Subagent exceeded {TIMEOUT_SECONDS}s.** Terminating.", thread_ts=thread_ts)
-                    process.terminate()
-                    break
+                    if time.time() - start_time > TIMEOUT_SECONDS:
+                        say(f"🛑 **TIMEOUT: Subagent exceeded {TIMEOUT_SECONDS}s.** Terminating.", thread_ts=thread_ts)
+                        process.terminate()
+                        break
                     
             process.wait()
             

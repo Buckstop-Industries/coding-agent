@@ -1,0 +1,26 @@
+{
+  "repositories": [
+    {
+      "name": "coding-agent",
+      "url": "git@github.com:bherrup/coding-agent.git",
+      "platform": "github"
+    }
+  ],
+  "subagents": [
+    {
+      "name": "frontend-specialist",
+      "description": "Expert in React, HTML, and CSS.",
+      "system_prompt": "You are a specialized subagent for frontend development tasks. Focus on React and modern CSS."
+    },
+    {
+      "name": "backend-specialist",
+      "description": "Expert in Python backend systems.",
+      "system_prompt": "You are a specialized subagent for backend tasks. Focus on API design, performance, and security."
+    },
+    {
+      "name": "infrastructure-specialist",
+      "description": "Expert in AWS CDK and DevOps.",
+      "system_prompt": "You are a specialized subagent for infrastructure tasks. Focus on AWS CDK, Docker, and CI/CD pipelines."
+    }
+  ]
+}

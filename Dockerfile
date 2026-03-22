@@ -1,28 +1,41 @@
 # Stage 1: Runtime Setup
-FROM node:20-slim AS base
+FROM python:3.12-slim AS base
 
-# Install Python and other system dependencies
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
-    python3 \
-    python3-pip \
-    python3-venv \
     curl \
     git \
     docker.io \
     procps \
+    gnupg \
     && rm -rf /var/lib/apt/lists/*
 
+# Install uv (modern package management)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
 # Install Gemini CLI and Maestro globally
-RUN npm install -g @google/gemini-cli@latest
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    npm install -g @google/gemini-cli@latest
 
 # Install gitlab-ci-local
 RUN npm install -g gitlab-ci-local
 
-# Install MCP Servers (these can be added as "plugins" here)
-# For now, we install common ones as part of the core fleet
+# Install MCP Servers
 RUN npm install -g @structured-world/gitlab-mcp \
     @sentry/mcp-server \
     @roychri/mcp-server-asana
+
+# Install GitHub CLI (gh)
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
+    chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
+    apt-get update && apt-get install -y gh
+
+# Install GitLab CLI (glab)
+RUN curl -fsSL https://packages.gitlab.com/install/repositories/gitlab/gitlab-explorer/script.deb.sh | bash && \
+    apt-get update && apt-get install -y glab
 
 # Create a non-root user
 RUN groupadd -g 1001 agent && \
@@ -33,19 +46,22 @@ RUN groupadd -g 1001 agent && \
 WORKDIR /workspace
 RUN chown -R agent:agent /workspace
 
-# Set up Python environment for app.py
+# Setup agent environment
 USER agent
-ENV VIRTUAL_ENV=/home/agent/venv
-RUN python3 -m venv $VIRTUAL_ENV
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+ENV PATH="/home/agent/.local/bin:$PATH"
 
-# Install Python dependencies (Bolt)
-COPY --chown=agent:agent app/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
-
-# Copy application code
+# Copy application and config files
 COPY --chown=agent:agent app/ /home/agent/app/
+COPY --chown=agent:agent fleet_config.json /workspace/fleet_config.json
 COPY --chown=agent:agent GEMINI.md /workspace/GEMINI.md
+COPY --chown=agent:agent scripts/ /workspace/scripts/
 
-# Application entry point
-CMD ["python", "/home/agent/app/app.py"]
+# Setup repository cache directory
+RUN mkdir -p /workspace/repos && chown -R agent:agent /workspace/repos
+
+# Initialize Python environment via uv
+WORKDIR /home/agent/app
+RUN uv sync
+
+# Set entrypoint
+ENTRYPOINT ["/bin/bash", "/workspace/scripts/entrypoint.sh"]
