@@ -8,6 +8,11 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # Persistent Workspace
       - ./local-workspace:/workspace
+      # Configuration & Prompts (Development)
+      - ./fleet_config.json:/workspace/fleet_config.json:ro
+      - ./prompts:/workspace/prompts:ro
+      - ./GEMINI.md:/workspace/GEMINI.md:ro
+      - ./scripts:/workspace/scripts:ro
     environment:
       # AWS Mock/Local Env
       - CDK_ENV=local

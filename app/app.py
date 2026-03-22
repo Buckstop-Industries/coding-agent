@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 MAX_TOKENS = int(os.environ.get("MAX_TOKENS", 2000000))
 CONTEXT_THRESHOLD = 0.90
 TIMEOUT_SECONDS = int(os.environ.get("AGENT_TIMEOUT", 1800))
-WORKSPACE_ROOT = Path("/workspace")
+WORKSPACE_ROOT = Path(os.environ.get("WORKSPACE_ROOT", "/workspace"))
 SESSIONS_ROOT = WORKSPACE_ROOT / "sessions"
 
 # Global lock to prevent concurrent operations in the same container
@@ -39,6 +39,17 @@ def generate_gemini_settings():
             with open(config_path, "r") as f:
                 config_data = json.load(f)
                 subagents = config_data.get("subagents", [])
+                
+                for agent in subagents:
+                    if "system_prompt_file" in agent:
+                        prompt_path = WORKSPACE_ROOT / agent.pop("system_prompt_file")
+                        if prompt_path.exists():
+                            with open(prompt_path, "r") as pf:
+                                agent["system_prompt"] = pf.read()
+                        else:
+                            logger.warning(f"Prompt file not found: {prompt_path}")
+                            agent["system_prompt"] = f"Warning: Prompt file {prompt_path.name} not found."
+                            
                 logger.info(f"Loaded {len(subagents)} subagents from {config_path}")
         except Exception as e:
             logger.error(f"Failed to load fleet_config.json: {e}")

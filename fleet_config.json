@@ -10,17 +10,22 @@
     {
       "name": "frontend-specialist",
       "description": "Expert in React, HTML, and CSS.",
-      "system_prompt": "You are a specialized subagent for frontend development tasks. Focus on React and modern CSS."
+      "system_prompt_file": "prompts/frontend-specialist.md"
     },
     {
       "name": "backend-specialist",
       "description": "Expert in Python backend systems.",
-      "system_prompt": "You are a specialized subagent for backend tasks. Focus on API design, performance, and security."
+      "system_prompt_file": "prompts/backend-specialist.md"
     },
     {
       "name": "infrastructure-specialist",
       "description": "Expert in AWS CDK and DevOps.",
-      "system_prompt": "You are a specialized subagent for infrastructure tasks. Focus on AWS CDK, Docker, and CI/CD pipelines."
+      "system_prompt_file": "prompts/infrastructure-specialist.md"
+    },
+    {
+      "name": "git-specialist",
+      "description": "Expert in Git best practices, commit history, and change management.",
+      "system_prompt_file": "prompts/git-specialist.md"
     }
   ]
 }

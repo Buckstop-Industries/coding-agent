@@ -11,8 +11,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv (modern package management)
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:$PATH"
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Install Gemini CLI and Maestro globally
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
@@ -53,6 +52,7 @@ ENV PATH="/home/agent/.local/bin:$PATH"
 # Copy application and config files
 COPY --chown=agent:agent app/ /home/agent/app/
 COPY --chown=agent:agent fleet_config.json /workspace/fleet_config.json
+COPY --chown=agent:agent prompts/ /workspace/prompts/
 COPY --chown=agent:agent GEMINI.md /workspace/GEMINI.md
 COPY --chown=agent:agent scripts/ /workspace/scripts/
 
