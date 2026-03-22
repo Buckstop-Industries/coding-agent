@@ -235,6 +235,17 @@ def handle_interaction(event, say):
     session_dir = SESSIONS_ROOT / thread_ts
     session_dir.mkdir(parents=True, exist_ok=True)
     
+    # Symlink shared resources to the session directory so the agent can find them locally
+    shared_resources = ["GEMINI.md", "fleet_config.json", "prompts", "scripts"]
+    for resource in shared_resources:
+        source = WORKSPACE_ROOT / resource
+        target = session_dir / resource
+        if source.exists() and not target.exists():
+            try:
+                target.symlink_to(source)
+            except Exception as e:
+                logger.error(f"Failed to symlink {resource}: {e}")
+    
     if execution_lock.locked():
         say("⏳ **Fleet Queue Busy:** Your request is queued and will start shortly.", thread_ts=thread_ts)
 
@@ -243,9 +254,20 @@ def handle_interaction(event, say):
         
         start_time = time.time()
         try:
+            # Check for existing session in this thread directory to enable persistence
+            cmd = ["gemini", "--yolo", "--include-directories", str(WORKSPACE_ROOT), "--output-format", "stream-json"]
+            
+            # If we've already run in this session, resume the latest state
+            if (session_dir / ".gemini").exists():
+                cmd += ["--resume", "latest"]
+                
+            cmd.append(clean_text)
+
+            logger.info(f"Executing Gemini command: {' '.join(cmd)} in CWD: {session_dir}")
+
             # Run gemini with stream-json for real-time structured events
             process = subprocess.Popen(
-                ["gemini", "--yolo", "--output-format", "stream-json", clean_text],
+                cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -256,6 +278,7 @@ def handle_interaction(event, say):
             full_response = ""
             last_usage = None
             error_detected = None
+            last_slack_update = time.time()
             
             if process.stdout:
                 for line in process.stdout:
@@ -278,12 +301,31 @@ def handle_interaction(event, say):
                         if event_type == "message":
                             # Assistant's response chunks
                             if event_data.get("role") == "assistant":
-                                full_response += event_data.get("content", "")
+                                chunk = event_data.get("content", "")
+                                full_response += chunk
+                                
+                                # Periodically flush partial responses to Slack for better interactivity
+                                if "\n" in chunk or len(full_response) > 500:
+                                    # We don't want to spam 'say' for every character, but seeing the plan form is good
+                                    # For now, we'll still send the full response at the end, 
+                                    # but this ensures the process log shows it.
+                                    last_slack_update = time.time()
                         
                         elif event_type == "tool_use":
                             # Tool call initiation
                             tool_name = event_data.get("tool_name")
-                            say(f"🛠️ **Acting:** Executing `{tool_name}`...", thread_ts=thread_ts)
+                            tool_input = event_data.get("input", {})
+                            agent_name = event_data.get("agent_name", "Lead")
+                            
+                            # Surface subagent delegation and nested tool calls
+                            if tool_name == "maestro":
+                                subagent_name = tool_input.get("subagent", "unknown")
+                                say(f"🤖 **Delegating to Specialist:** `{subagent_name}`...", thread_ts=thread_ts)
+                            elif tool_name == "generalist":
+                                say(f"🤖 **Delegating to Generalist subagent...**", thread_ts=thread_ts)
+                            else:
+                                prefix = f"🤖 **[{agent_name}]** " if agent_name != "Lead" else "🛠️ **Acting:** "
+                                say(f"{prefix}Executing `{tool_name}`...", thread_ts=thread_ts)
                             
                         elif event_type == "result":
                             # Final token usage metadata and execution status
