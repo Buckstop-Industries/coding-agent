@@ -1,0 +1,33 @@
+services:
+  fleet-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Docker Socket Passthrough for gitlab-ci-local / DinD
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persistent Workspace
+      - ./local-workspace:/workspace
+    environment:
+      # AWS Mock/Local Env
+      - CDK_ENV=local
+      - MAX_TOKENS=2000000
+      - AGENT_TIMEOUT=1800
+      - BOT_USER_ID=U12345678  # Mock Bot ID
+      
+      # REQUIRED SECRETS (Provide these in a local .env file)
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - SLACK_APP_TOKEN=${SLACK_APP_TOKEN}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      
+      # OPTIONAL MCP SECRETS
+      - GITLAB_PAT=${GITLAB_PAT}
+      - SENTRY_TOKEN=${SENTRY_TOKEN}
+      - ASANA_PAT=${ASANA_PAT}
+    
+    # Ensure the container stays alive or starts the bridge
+    restart: unless-stopped
+
+networks:
+  default:
+    name: fleet-network
