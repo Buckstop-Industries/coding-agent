@@ -23,6 +23,7 @@ htmlcov/
 # Gemini CLI / Agent Specific
 .gemini/
 local-workspace/
+fleet_config.json
 .context_usage
 .gemini_telemetry.log
 gemini-client-error-*.json

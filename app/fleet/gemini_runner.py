@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 def generate_gemini_settings():
     """Dynamically generates the settings.json for Gemini CLI."""
     subagents = []
-    config_path = config.RESOURCES_ROOT / "fleet_config.json"
+    config_path = config.FLEET_CONFIG_PATH
     if config_path.exists():
         try:
             with open(config_path, "r") as f:

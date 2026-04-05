@@ -23,7 +23,10 @@ SESSION_DIR="$(pwd)"
 WORKTREE_PATH="${SESSION_DIR}/local-workspace/worktrees/$REPO_NAME"
 mkdir -p "${SESSION_DIR}/local-workspace/worktrees"
 
-CONFIG_FILE="${RESOURCES_ROOT:-$PROJECT_ROOT}/fleet_config.json"
+CONFIG_FILE=${FLEET_CONFIG_PATH:-"${RESOURCES_ROOT:-$PROJECT_ROOT}/fleet_config.json"}
+if [ ! -f "$CONFIG_FILE" ]; then
+    CONFIG_FILE="${RESOURCES_ROOT:-$PROJECT_ROOT}/fleet_config.example.json"
+fi
 
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "❌ Error: $CONFIG_FILE not found."

@@ -50,6 +50,8 @@ spec:
           value: "/mnt/persistence/active_sessions"
         - name: DB_PATH
           value: "/mnt/persistence/fleet.db"
+        - name: FLEET_CONFIG_PATH
+          value: "/mnt/persistence/fleet_config.json"
         - name: GEMINI_FORCE_FILE_STORAGE
           value: "true"
         - name: PORT
